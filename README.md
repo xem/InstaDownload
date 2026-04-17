@@ -10,4 +10,4 @@ Notes:
 - Videos are downloaded in separaed folders (grouped per year: /2026, /2025, /2024...)
 - the script stops when a rate limit is exceeded (~100 videos), wait 24-48h to restart it
 - the script skips videos already downloaded
-- featuring yt-dlp (included in this repo)
+- thanks to yt-dlp.exe (included in this repo)
