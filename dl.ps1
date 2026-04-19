@@ -65,7 +65,7 @@ foreach ($post in $posts) {
         # SKIP if present
         # =========================
         if (Test-Path $expectedMp4) {
-            Write-Host "[SKIP] existe déjà : $instaID.mp4"
+            Write-Host "[SKIP] already exists : $instaID.mp4"
             continue
         }
 
