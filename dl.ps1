@@ -3,11 +3,12 @@
 # =========================
 $yt = Join-Path $PSScriptRoot "yt-dlp.exe"
 $baseDir = Join-Path $PSScriptRoot "downloads"
+$cookies = Join-Path $PSScriptRoot "cookies.txt"
 
 New-Item -ItemType Directory -Force -Path $baseDir | Out-Null
 
-# delay (seconds)
-$sleepBetween = 5
+# slows down IG scraping massively
+$sleepBetween = 20   # seconds
 
 # =========================
 # JSON LOAD
@@ -27,9 +28,9 @@ else {
 
 Write-Host "Links : $($posts.Count)"
 
-# =============
+# =========================
 # DOWNLOAD LOOP
-# =============
+# =========================
 foreach ($post in $posts) {
 
     try {
@@ -48,7 +49,7 @@ foreach ($post in $posts) {
 
         $instaID = $match.Groups[2].Value
 
-        # year
+        # year from timestamp
         $timestamp = $post.timestamp
         if ($timestamp) {
             $year = [datetimeoffset]::FromUnixTimeSeconds($timestamp).Year
@@ -61,9 +62,7 @@ foreach ($post in $posts) {
 
         $expectedMp4 = Join-Path $outDir "$instaID.mp4"
 
-        # =========================
-        # SKIP if present
-        # =========================
+        # SKIP if already present
         if (Test-Path $expectedMp4) {
             Write-Host "[SKIP] already exists : $instaID.mp4"
             continue
@@ -71,58 +70,69 @@ foreach ($post in $posts) {
 
         Write-Host "[$year] DL : $url"
 
-        # capture output
-        $output = & $yt `
-            --ignore-errors `
-            --no-warnings `
-            --retries 3 `
-            --force-ipv4 `
-            --sleep-requests 1 `
-            --sleep-interval 3 `
-            --max-sleep-interval 7 `
-            --output "$outDir/%(id)s.%(ext)s" `
-            "$url" 2>&1
+        # build yt-dlp command
+        $cmd = @(
+            "--ignore-errors",
+            "--no-warnings",
+            "--retries", "3",
+            "--force-ipv4",
+            "--sleep-requests", "5",
+            "--sleep-interval", "10",
+            "--max-sleep-interval", "20",
+            "--output", "$outDir/%(id)s.%(ext)s"
+        )
 
-        # =========================
-        # DETECT ERRORS
-        # =========================
-        # normaliser sortie texte
+        if (Test-Path $cookies) {
+            $cmd += @("--cookies", $cookies)
+        }
+
+        # execute yt-dlp
+        $output = & $yt @cmd "$url" 2>&1
         $outText = $output -join "`n"
 
         # =========================
-        # RATE LIMIT (STOP)
+        # RATE LIMIT → STOP
         # =========================
-        if ($outText -match "(?i)rate.?limit|too many requests|429") {
+        if ($outText -match "(?i)rate.?limit|429|too many requests") {
             Write-Host ""
-            Write-Host "[RATE LIMIT] stop"
-            Write-Host $outText
+            Write-Host "[RATE LIMIT] stop execution"
+            Write-Host "=== END ==="
             break
         }
 
         # =========================
-        # NOT AVAILABLE (SKIP)
+        # NO VIDEO / PRIVATE / DEAD POST → placeholder
         # =========================
-        if ($outText -match "(?i)isn't available|not available|private|login required|restricted") {
-            Write-Host "[SKIP] not available : $instaID"
+        if ($outText -match "(?i)isn't available|not available|private|login required|restricted|404|video unavailable|ERROR") {
+
+            if (!(Test-Path $expectedMp4)) {
+                "" | Out-File -Encoding ascii $expectedMp4
+                Write-Host "[PLACEHOLDER] created : $instaID.mp4"
+            } else {
+                Write-Host "[PLACEHOLDER] already exists : $instaID.mp4"
+            }
+
+            Start-Sleep -Seconds $sleepBetween
             continue
         }
 
         # =========================
-        # OTHER ERRORS (optional)
+        # If yt-dlp did not produce a file → create placeholder
         # =========================
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[ERROR] yt-dlp can't download : $instaID"
-            continue
+        if (!(Test-Path $expectedMp4)) {
+            "" | Out-File -Encoding ascii $expectedMp4
+            Write-Host "[PLACEHOLDER] fallback : $instaID.mp4"
         }
 
-        # =========================
-        # SLEEP BETWEEN DL
-        # =========================
+        # delay to avoid IG captcha/rate-limit
         Start-Sleep -Seconds $sleepBetween
 
     }
     catch {
-        Write-Host "[ERROR] $_"
+        Write-Host "[ERROR] exception, creating placeholder: $instaID"
+        "" | Out-File -Encoding ascii $expectedMp4
+        Start-Sleep -Seconds $sleepBetween
+        continue
     }
 }
 
