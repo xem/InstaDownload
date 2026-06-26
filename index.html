@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Instagram Likes Archive</title>
+
+<style>
+:root{
+    --bg:#111;
+    --panel:#1b1b1b;
+    --text:#eee;
+    --accent:#444;
+}
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:Arial,Helvetica,sans-serif;
+}
+
+#years{
+    padding:20px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    border-bottom:1px solid #333;
+}
+
+.year-btn{
+    background:var(--panel);
+    color:white;
+    border:none;
+    padding:10px 16px;
+    cursor:pointer;
+    border-radius:8px;
+}
+
+.year-btn:hover{
+    background:#333;
+}
+
+.year-btn.active{
+    background:#666;
+}
+
+#gallery{
+    padding:20px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(100px,1fr));
+    gap:10px;
+}
+
+.thumb{
+    width:100%;
+    aspect-ratio:100/150;
+    object-fit:cover;
+    cursor:pointer;
+    border-radius:6px;
+    transition:transform .15s;
+}
+
+.thumb:hover{
+    transform:scale(1.04);
+}
+
+#viewer{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.95);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    z-index:999;
+}
+
+#videoContainer{
+    width:min(90vw,700px);
+}
+
+#player{
+    width:100%;
+    max-height:80vh;
+    background:black;
+}
+
+.nav-row{
+    margin-top:15px;
+    display:flex;
+    align-items:center;
+    gap:20px;
+}
+
+.nav-btn{
+    width:60px;
+    height:60px;
+    border:none;
+    border-radius:50%;
+    font-size:28px;
+    cursor:pointer;
+    background:#333;
+    color:white;
+    transition:.2s;
+}
+
+.nav-btn:hover{
+    background:#555;
+}
+
+.hidden-nav{
+    opacity:0;
+    pointer-events:none;
+}
+
+#closeBtn{
+    position:absolute;
+    top:20px;
+    right:20px;
+    border:none;
+    background:#333;
+    color:white;
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    cursor:pointer;
+    font-size:20px;
+}
+
+#videoInfo{
+    margin-top:10px;
+    color:#bbb;
+    text-align:center;
+}
+</style>
+</head>
+<body>
+
+<div id="years"></div>
+
+<div id="gallery"></div>
+
+<div id="viewer">
+
+    <button id="closeBtn">✕</button>
+
+    <div id="videoContainer">
+        <video
+            id="player"
+            controls
+            loop
+            playsinline>
+        </video>
+
+        <div id="videoInfo"></div>
+
+        <div class="nav-row">
+            <button id="prevBtn" class="nav-btn">&lt;</button>
+            <button id="nextBtn" class="nav-btn">&gt;</button>
+        </div>
+    </div>
+
+</div>
+
+<script src="./downloads/videos.js"></script>
+
+<script>
+
+const yearsContainer = document.getElementById("years");
+const gallery = document.getElementById("gallery");
+
+const viewer = document.getElementById("viewer");
+const player = document.getElementById("player");
+
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const closeBtn = document.getElementById("closeBtn");
+
+const videoInfo = document.getElementById("videoInfo");
+
+let currentYear = null;
+let currentVideos = [];
+let currentIndex = 0;
+
+function thumbnailPath(videoPath)
+{
+    const parts = videoPath.split("/");
+
+    const year = parts[2];
+    const file = parts[3];
+
+    const png = file.replace(".mp4", ".png");
+
+    return `./downloads/thumbs/${year}/${png}`;
+}
+
+function renderYears()
+{
+    const years = Object.keys(mp4).sort().reverse();
+
+    for(const year of years)
+    {
+        const btn = document.createElement("button");
+
+        btn.className = "year-btn";
+        btn.textContent = year;
+
+        btn.onclick = () =>
+        {
+            document
+                .querySelectorAll(".year-btn")
+                .forEach(x => x.classList.remove("active"));
+
+            btn.classList.add("active");
+
+            showYear(year);
+        };
+
+        yearsContainer.appendChild(btn);
+    }
+
+    if(years.length)
+    {
+        yearsContainer.firstChild.click();
+    }
+}
+
+function showYear(year)
+{
+    currentYear = year;
+    currentVideos = mp4[year];
+
+    gallery.innerHTML = "";
+
+    currentVideos.forEach((video,index)=>
+    {
+        const img = document.createElement("img");
+
+        img.className = "thumb";
+        img.src = thumbnailPath(video);
+
+        img.onclick = () =>
+        {
+            openVideo(index);
+        };
+
+        gallery.appendChild(img);
+    });
+}
+
+function updateNavButtons()
+{
+    if(currentIndex <= 0)
+    {
+        prevBtn.classList.add("hidden-nav");
+    }
+    else
+    {
+        prevBtn.classList.remove("hidden-nav");
+    }
+
+    if(currentIndex >= currentVideos.length - 1)
+    {
+        nextBtn.classList.add("hidden-nav");
+    }
+    else
+    {
+        nextBtn.classList.remove("hidden-nav");
+    }
+}
+
+function openVideo(index)
+{
+    currentIndex = index;
+
+    player.src = currentVideos[index];
+
+    viewer.style.display = "flex";
+
+    videoInfo.textContent =
+        `${currentYear} — ${index + 1} / ${currentVideos.length}`;
+
+    updateNavButtons();
+
+    player.play().catch(()=>{});
+}
+
+function closeViewer()
+{
+    player.pause();
+    viewer.style.display = "none";
+}
+
+function previousVideo()
+{
+    if(currentIndex <= 0)
+        return;
+
+    openVideo(currentIndex - 1);
+}
+
+function nextVideo()
+{
+    if(currentIndex >= currentVideos.length - 1)
+        return;
+
+    openVideo(currentIndex + 1);
+}
+
+prevBtn.onclick = previousVideo;
+nextBtn.onclick = nextVideo;
+closeBtn.onclick = closeViewer;
+
+document.addEventListener("keydown",(e)=>
+{
+    if(viewer.style.display !== "flex")
+        return;
+
+    if(e.key === "Escape")
+        closeViewer();
+
+    if(e.key === "ArrowLeft")
+        previousVideo();
+
+    if(e.key === "ArrowRight")
+        nextVideo();
+});
+
+viewer.addEventListener("click",(e)=>
+{
+    if(e.target === viewer)
+    {
+        closeViewer();
+    }
+});
+
+renderYears();
+
+</script>
+
+</body>
+</html>
